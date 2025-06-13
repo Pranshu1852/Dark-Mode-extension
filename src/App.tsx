@@ -11,10 +11,32 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Minus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function App() {
   const [slider, setSlider] = useState(50);
+
+  function getColorArray(color: string) {
+    const rgbaRegex=/rgba\((\d+),\s(\d+),\s(\d+),\s(\d+)\)$/;
+    const rgbRegex=/rgb\((\d+),\s(\d+),\s(\d+)\)$/;
+    let result: string[] | undefined;
+
+    if(rgbaRegex.test(color)) {
+      result=color.match(rgbaRegex)?.slice(1);
+    }
+    else if(rgbRegex.test(color)) {
+      result=color.match(rgbRegex)?.slice(1);
+    }
+
+    return result;
+  }
+
+  useEffect(() => {
+    const nodeList=document.querySelectorAll('*');
+    nodeList.forEach((node) => {
+      console.log(node.tagName , getColorArray(getComputedStyle(node).backgroundColor));
+    });
+  },[])
 
   return (
     <div className="w-full containerbox flex flex-col items-center gap-5 p-10">
