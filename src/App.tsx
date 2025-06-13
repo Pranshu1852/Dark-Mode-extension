@@ -31,6 +31,18 @@ function App() {
     return result;
   }
 
+  function invertColor(colorArray: string[] | undefined) {
+    if(!colorArray){
+      return;
+    }
+
+    for(let i=0;i<3;i++) {
+      colorArray[i]=(255-Number(colorArray[i])).toString();
+    }
+
+    return colorArray.length === 4 ? `rgba(${colorArray.join(',')})` : `rgb(${colorArray.join(',')})`
+  }
+
   useEffect(() => {
     const nodeList=document.querySelectorAll('*');
     nodeList.forEach((node) => {
