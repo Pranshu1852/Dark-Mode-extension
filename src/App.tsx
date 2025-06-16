@@ -12,9 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Minus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { formatRgb, parse } from "culori"
 
 function App() {
   const [slider, setSlider] = useState(50);
+  const [isDark, setIsDark] = useState(false);
 
   function getColorArray(color: string) {
     const rgbaRegex=/rgba\((\d+),\s(\d+),\s(\d+),\s(\d+)\)$/;
@@ -28,8 +30,8 @@ function App() {
       result=color.match(rgbRegex)?.slice(1);
     }
 
-    return result;
-  }
+    return result;                                                                                                
+  }                                                                                                                                                     
 
   function invertColor(colorArray: string[] | undefined) {
     if(!colorArray){
@@ -40,21 +42,54 @@ function App() {
       colorArray[i]=(255-Number(colorArray[i])).toString();
     }
 
-    return colorArray.length === 4 ? `rgba(${colorArray.join(',')})` : `rgb(${colorArray.join(',')})`
+    return colorArray.length === 4 ? `rgba(${colorArray.join(', ')})` : `rgb(${colorArray.join(',')})`
   }
 
   useEffect(() => {
+    console.log(JSON.stringify(chrome));
+    
     const nodeList=document.querySelectorAll('*');
-    nodeList.forEach((node) => {
-      console.log(node.tagName , getColorArray(getComputedStyle(node).backgroundColor));
+      nodeList.forEach((node) => {
+        if(node instanceof HTMLElement) {
+          if(isDark) {
+            const computedStyle=getComputedStyle(node);
+            const newBgColor=invertColor(getColorArray(formatRgb(parse(computedStyle.backgroundColor)) || ''));
+            const newColor=invertColor(getColorArray(formatRgb(parse(computedStyle.color)) || ''));
+            const newBorderColor=invertColor(getColorArray(formatRgb(parse(computedStyle.borderColor)) || ''));
+
+            console.log(node.tagName, formatRgb(parse(computedStyle.borderColor)));
+            
+            if(newColor) {
+              node.dataset.color=computedStyle.color
+              node.style.color=newColor;
+            }
+            if(newBgColor) {
+              node.dataset.backgroundColor=computedStyle.backgroundColor
+              node.style.backgroundColor=newBgColor;
+            }
+            if(newBorderColor) {
+              node.dataset.borderColor=computedStyle.borderColor
+              node.style.borderColor=newBorderColor;
+            }
+          }
+          else {
+            if(node.dataset.backgroundColor) {
+              node.style.backgroundColor=node.dataset.backgroundColor;
+              node.style.color=node.dataset.color!;
+              node.style.borderColor=node.dataset.borderColor!;
+            }
+          }
+        }
     });
-  },[])
+  },[isDark])
 
   return (
-    <div className="w-full containerbox flex flex-col items-center gap-5 p-10">
-      <Switch className="bg-blue-400" />
+    <div className="w-full min-h-full containerbox flex flex-col items-center gap-5 p-10">
+      <Switch checked={isDark} onClick={() => {
+        setIsDark((prevVal) => !prevVal)
+      }} className="bg-blue-400" />
       <Tabs defaultValue="tab1">
-        <TabsList className="w-96">
+        <TabsList className="w-72">
           <TabsTrigger className="cursor-pointer" value="tab1">
             Tab1
           </TabsTrigger>

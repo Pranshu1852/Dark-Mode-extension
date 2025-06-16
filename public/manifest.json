@@ -8,6 +8,16 @@
         "default_title":"Dark Mode",
         "default_popup":"index.html"
     },
+    "permissions": ["activeTab", "scripting"],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [{
+        "matches": ["http://*/*", "https://*/*", "<all_urls>"],
+        "js": [
+                "./content.js"
+            ]
+    }],
     "icons":{
         "128":"icon.png"
     }
