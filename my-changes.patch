@@ -1,0 +1,324 @@
+diff --git a/public/manifest.json b/public/manifest.json
+index 2fe1491..85641b9 100644
+--- a/public/manifest.json
++++ b/public/manifest.json
+@@ -8,7 +8,7 @@
+         "default_title":"Dark Mode",
+         "default_popup":"index.html"
+     },
+-    "permissions": ["activeTab", "scripting"],
++    "permissions": ["activeTab", "scripting", "storage"],
+     "background": {
+         "service_worker": "background.js"
+     },
+diff --git a/src/App.tsx b/src/App.tsx
+index 0671701..4cc9f62 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -12,81 +12,49 @@ import { Button } from "@/components/ui/button";
+ import { Plus } from "lucide-react";
+ import { Minus } from "lucide-react";
+ import { useEffect, useState } from "react";
+-import { formatRgb, parse } from "culori"
+ 
+ function App() {
+   const [slider, setSlider] = useState(50);
+   const [isDark, setIsDark] = useState(false);
+ 
+-  function getColorArray(color: string) {
+-    const rgbaRegex=/rgba\((\d+),\s(\d+),\s(\d+),\s(\d+)\)$/;
+-    const rgbRegex=/rgb\((\d+),\s(\d+),\s(\d+)\)$/;
+-    let result: string[] | undefined;
+-
+-    if(rgbaRegex.test(color)) {
+-      result=color.match(rgbaRegex)?.slice(1);
+-    }
+-    else if(rgbRegex.test(color)) {
+-      result=color.match(rgbRegex)?.slice(1);
+-    }
+-
+-    return result;                                                                                                
+-  }                                                                                                                                                     
+-
+-  function invertColor(colorArray: string[] | undefined) {
+-    if(!colorArray){
+-      return;
+-    }
+-
+-    for(let i=0;i<3;i++) {
+-      colorArray[i]=(255-Number(colorArray[i])).toString();
+-    }
++  useEffect(() => {
++    chrome.storage.local.get('dark').then((data) => {
++      if(data['dark']){
++        setIsDark(data['dark']);
++      }
++    })
++  },[])
+ 
+-    return colorArray.length === 4 ? `rgba(${colorArray.join(', ')})` : `rgb(${colorArray.join(',')})`
++  function handleThemeToggle() {
++    setIsDark((prevTheme) => {
++      chrome.storage.local.set({dark: !prevTheme}).then(() => {
++        console.log('why this is not working');
++        
++      });
++      return !prevTheme;
++    })
+   }
+ 
+   useEffect(() => {
+-    console.log(JSON.stringify(chrome));
++    console.log('from App', isDark);
+     
+-    const nodeList=document.querySelectorAll('*');
+-      nodeList.forEach((node) => {
+-        if(node instanceof HTMLElement) {
+-          if(isDark) {
+-            const computedStyle=getComputedStyle(node);
+-            const newBgColor=invertColor(getColorArray(formatRgb(parse(computedStyle.backgroundColor)) || ''));
+-            const newColor=invertColor(getColorArray(formatRgb(parse(computedStyle.color)) || ''));
+-            const newBorderColor=invertColor(getColorArray(formatRgb(parse(computedStyle.borderColor)) || ''));
++    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
++      console.log(tabs);
++      
++      const activeTab=tabs[0];
+ 
+-            console.log(node.tagName, formatRgb(parse(computedStyle.borderColor)));
+-            
+-            if(newColor) {
+-              node.dataset.color=computedStyle.color
+-              node.style.color=newColor;
+-            }
+-            if(newBgColor) {
+-              node.dataset.backgroundColor=computedStyle.backgroundColor
+-              node.style.backgroundColor=newBgColor;
+-            }
+-            if(newBorderColor) {
+-              node.dataset.borderColor=computedStyle.borderColor
+-              node.style.borderColor=newBorderColor;
+-            }
+-          }
+-          else {
+-            if(node.dataset.backgroundColor) {
+-              node.style.backgroundColor=node.dataset.backgroundColor;
+-              node.style.color=node.dataset.color!;
+-              node.style.borderColor=node.dataset.borderColor!;
+-            }
+-          }
+-        }
+-    });
++      if(activeTab.id) {
++        chrome.tabs.sendMessage(activeTab.id, { isDark: isDark }, (response) => {
++          console.log(response);
++        })
++      }
++    })
+   },[isDark])
+ 
+   return (
+     <div className="w-full min-h-full containerbox flex flex-col items-center gap-5 p-10">
+       <Switch checked={isDark} onClick={() => {
+-        setIsDark((prevVal) => !prevVal)
++        handleThemeToggle();
+       }} className="bg-blue-400" />
+       <Tabs defaultValue="tab1">
+         <TabsList className="w-72">
+diff --git a/src/background.ts b/src/background.ts
+index 19f91cc..c8019d2 100644
+--- a/src/background.ts
++++ b/src/background.ts
+@@ -1,13 +1,7 @@
+-console.log('action trigger');
+-chrome.action.onClicked.addListener(async (tab) => {
+-  console.log('inside.....................');
+-  
+-  try {
+-    await chrome.scripting.executeScript({
+-      target: {tabId: tab.id!},
+-      files: ['content.js']
++chrome.runtime.onMessage.addListener((response,_,sendResponse) => {
++    sendResponse({
++        received: true
+     });
+-  } catch (error) {
+-    console.log(error);
+-  }
+-});
+\ No newline at end of file
++
++    return true;
++})
+\ No newline at end of file
+diff --git a/src/content.ts b/src/content.ts
+index b21c01a..1991104 100644
+--- a/src/content.ts
++++ b/src/content.ts
+@@ -1,4 +1,4 @@
+-declare const culori: any
++declare const culori: any;
+ 
+ console.log("content file is here");
+ 
+@@ -30,60 +30,109 @@ function invertColor(colorArray: string[] | undefined) {
+     : `rgb(${colorArray.join(",")})`;
+ }
+ 
+-const isDark = true;
++let isDark = false;
+ 
+-const nodeList = document.querySelectorAll("*");
+-nodeList.forEach((node) => {
+-  if (node instanceof HTMLElement) {
+-    if (isDark) {
+-      const computedStyle = getComputedStyle(node);
++chrome.runtime.onMessage.addListener((response,_,sendResponse) => {
++    sendResponse({
++        received: true
++    });
++    
++    isDark=response.isDark || false;
+ 
+-      let currentNode=node;
++    changeColor(response.isDark);
+ 
+-      while(currentNode && (getComputedStyle(currentNode).backgroundColor === 'rgba(0, 0, 0, 0)' || getComputedStyle(currentNode).backgroundColor === 'rgba(255, 255, 255, 0)')) {
+-        if(!currentNode.parentElement) {
++    return true;
++})
++
++
++function changeColor(isDark: boolean) {
++    const nodeList = document.querySelectorAll("*");
++    nodeList.forEach((node) => {
++    if (node instanceof HTMLElement) {
++        if (isDark) {
++        const computedStyle = getComputedStyle(node);
++        console.log(computedStyle.backgroundColor);
++
++        let currentNode = node;
++
++        if(node.dataset.backgroundColor || node.dataset.color || node.dataset.borderColor) {
++            return;
++        }
++
++        while (
++            currentNode &&
++            (getComputedStyle(currentNode).backgroundColor === "rgba(0, 0, 0, 0)" ||
++            getComputedStyle(currentNode).backgroundColor ===
++                "rgba(255, 255, 255, 0)")
++        ) {
++            if (!currentNode.parentElement) {
+             break;
++            }
++            currentNode = currentNode.parentElement;
++        }
++
++        let newBgColor = invertColor(
++            getColorArray(
++            culori.formatRgb(culori.parse(computedStyle.backgroundColor)) || ""
++            )
++        );
++        let newColor = invertColor(
++            getColorArray(culori.formatRgb(culori.parse(computedStyle.color)) || "")
++        );
++        let newBorderColor = invertColor(
++            getColorArray(
++            culori.formatRgb(culori.parse(computedStyle.borderColor)) || ""
++            )
++        );
++
++        if (
++            computedStyle.backgroundColor === "rgba(0, 0, 0, 0)" &&
++            (getComputedStyle(currentNode).backgroundColor === "rgba(0, 0, 0, 0)" ||
++            getComputedStyle(currentNode).backgroundColor ===
++                "rgba(255, 255, 255, 0)")
++        ) {
++            newBgColor = "rgba(0, 0, 0, 1)";
++        }
++
++        if (
++            computedStyle.backgroundColor === "rgba(0, 0, 0, 0)" ||
++            computedStyle.backgroundColor === "rgba(255, 255, 255, 0)" ||
++            getComputedStyle(currentNode).backgroundColor === "rgba(0, 0, 0, 0)" ||
++            getComputedStyle(currentNode).backgroundColor ===
++            "rgba(255, 255, 255, 0)"
++        ) {
++            newColor = "rgba(255, 255, 255, 1)";
++        }
++
++        if (newColor) {
++            node.dataset.color = computedStyle.color;
++            node.style.color = newColor;
++        }
++
++        if (newBgColor) {
++            node.dataset.backgroundColor = computedStyle.backgroundColor;
++            node.style.backgroundColor = newBgColor;
++        }
++        if (newBorderColor) {
++            node.dataset.borderColor = computedStyle.borderColor;
++            node.style.borderColor = newBorderColor;
++        }
++        } else {
++        if (node.dataset.backgroundColor) {
++            node.style.backgroundColor = node.dataset.backgroundColor;
++            node.style.color = node.dataset.color || "";
++            node.style.borderColor = node.dataset.borderColor || "";
++        }
+         }
+-        currentNode=currentNode.parentElement;
+-      }
+-
+-      let newBgColor = invertColor(
+-        getColorArray(culori.formatRgb(culori.parse(computedStyle.backgroundColor)) || "")
+-      );
+-      let newColor = invertColor(
+-        getColorArray(culori.formatRgb(culori.parse(computedStyle.color)) || "")
+-      );
+-      let newBorderColor = invertColor(
+-        getColorArray(culori.formatRgb(culori.parse(computedStyle.borderColor)) || "")
+-      );
+-
+-      if(computedStyle.backgroundColor=== 'rgba(0, 0, 0, 0)' && (getComputedStyle(currentNode).backgroundColor === 'rgba(0, 0, 0, 0)' || getComputedStyle(currentNode).backgroundColor === 'rgba(255, 255, 255, 0)')) {
+-        newBgColor='rgba(0, 0, 0, 1)'
+-      }
+-
+-      if(computedStyle.backgroundColor=== 'rgba(0, 0, 0, 0)' || computedStyle.backgroundColor=== 'rgba(255, 255, 255, 0)' || getComputedStyle(currentNode).backgroundColor === 'rgba(0, 0, 0, 0)' || getComputedStyle(currentNode).backgroundColor === 'rgba(255, 255, 255, 0)'){
+-        newColor='rgba(255, 255, 255, 1)'
+-      }
+-
+-      if (newColor) {
+-        node.dataset.color = computedStyle.color;
+-        node.style.color = newColor;
+-      }
+-
+-      if (newBgColor) {
+-        node.dataset.backgroundColor = computedStyle.backgroundColor;
+-        node.style.backgroundColor = newBgColor;
+-      }
+-      if (newBorderColor) {
+-        node.dataset.borderColor = computedStyle.borderColor;
+-        node.style.borderColor = newBorderColor;
+-      }
+-    } else {
+-      if (node.dataset.backgroundColor) {
+-        node.style.backgroundColor = node.dataset.backgroundColor;
+-        node.style.color = node.dataset.color || '';
+-        node.style.borderColor = node.dataset.borderColor || '';
+-      }
+     }
+-  }
+-});
++    });
++}
++
++const observer=new MutationObserver(() => {
++    changeColor(isDark)
++})
++
++observer.observe(document.body, {
++    childList: true,
++    subtree: true
++})
+\ No newline at end of file

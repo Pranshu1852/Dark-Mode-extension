@@ -12,81 +12,49 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Minus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { formatRgb, parse } from "culori"
 
 function App() {
   const [slider, setSlider] = useState(50);
   const [isDark, setIsDark] = useState(false);
 
-  function getColorArray(color: string) {
-    const rgbaRegex=/rgba\((\d+),\s(\d+),\s(\d+),\s(\d+)\)$/;
-    const rgbRegex=/rgb\((\d+),\s(\d+),\s(\d+)\)$/;
-    let result: string[] | undefined;
+  useEffect(() => {
+    chrome.storage.local.get('dark').then((data) => {
+      if(data['dark']){
+        setIsDark(data['dark']);
+      }
+    })
+  },[])
 
-    if(rgbaRegex.test(color)) {
-      result=color.match(rgbaRegex)?.slice(1);
-    }
-    else if(rgbRegex.test(color)) {
-      result=color.match(rgbRegex)?.slice(1);
-    }
-
-    return result;                                                                                                
-  }                                                                                                                                                     
-
-  function invertColor(colorArray: string[] | undefined) {
-    if(!colorArray){
-      return;
-    }
-
-    for(let i=0;i<3;i++) {
-      colorArray[i]=(255-Number(colorArray[i])).toString();
-    }
-
-    return colorArray.length === 4 ? `rgba(${colorArray.join(', ')})` : `rgb(${colorArray.join(',')})`
+  function handleThemeToggle() {
+    setIsDark((prevTheme) => {
+      chrome.storage.local.set({dark: !prevTheme}).then(() => {
+        console.log('why this is not working');
+        
+      });
+      return !prevTheme;
+    })
   }
 
   useEffect(() => {
-    console.log(JSON.stringify(chrome));
+    console.log('from App', isDark);
     
-    const nodeList=document.querySelectorAll('*');
-      nodeList.forEach((node) => {
-        if(node instanceof HTMLElement) {
-          if(isDark) {
-            const computedStyle=getComputedStyle(node);
-            const newBgColor=invertColor(getColorArray(formatRgb(parse(computedStyle.backgroundColor)) || ''));
-            const newColor=invertColor(getColorArray(formatRgb(parse(computedStyle.color)) || ''));
-            const newBorderColor=invertColor(getColorArray(formatRgb(parse(computedStyle.borderColor)) || ''));
+    chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+      console.log(tabs);
+      
+      const activeTab=tabs[0];
 
-            console.log(node.tagName, formatRgb(parse(computedStyle.borderColor)));
-            
-            if(newColor) {
-              node.dataset.color=computedStyle.color
-              node.style.color=newColor;
-            }
-            if(newBgColor) {
-              node.dataset.backgroundColor=computedStyle.backgroundColor
-              node.style.backgroundColor=newBgColor;
-            }
-            if(newBorderColor) {
-              node.dataset.borderColor=computedStyle.borderColor
-              node.style.borderColor=newBorderColor;
-            }
-          }
-          else {
-            if(node.dataset.backgroundColor) {
-              node.style.backgroundColor=node.dataset.backgroundColor;
-              node.style.color=node.dataset.color!;
-              node.style.borderColor=node.dataset.borderColor!;
-            }
-          }
-        }
-    });
+      if(activeTab.id) {
+        chrome.tabs.sendMessage(activeTab.id, { isDark: isDark }, (response) => {
+          console.log(response);
+        })
+      }
+    })
   },[isDark])
 
   return (
     <div className="w-full min-h-full containerbox flex flex-col items-center gap-5 p-10">
       <Switch checked={isDark} onClick={() => {
-        setIsDark((prevVal) => !prevVal)
+        handleThemeToggle();
       }} className="bg-blue-400" />
       <Tabs defaultValue="tab1">
         <TabsList className="w-72">

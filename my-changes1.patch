@@ -1,0 +1,13 @@
+diff --git a/public/manifest.json b/public/manifest.json
+index 2fe1491..85641b9 100644
+--- a/public/manifest.json
++++ b/public/manifest.json
+@@ -8,7 +8,7 @@
+         "default_title":"Dark Mode",
+         "default_popup":"index.html"
+     },
+-    "permissions": ["activeTab", "scripting"],
++    "permissions": ["activeTab", "scripting", "storage"],
+     "background": {
+         "service_worker": "background.js"
+     },
