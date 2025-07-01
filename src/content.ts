@@ -2,9 +2,29 @@ declare const culori: any;
 
 console.log("content file is here");
 
+function checkIsDark(colorArray: string[] | undefined) {
+  if (!colorArray) {
+    return true;
+  }
+
+  const luminance =
+    (0.299 * Number(colorArray[0]) +
+      0.587 * Number(colorArray[1]) +
+      0.114 * Number(colorArray[2])) /
+    255;
+
+  if (luminance <= 0.4) {
+    return true;
+  }
+
+  return false;
+}
+
 function getColorArray(color: string) {
-  const rgbaRegex = /rgba\((\d+),\s(\d+),\s(\d+),\s(\d+)\)$/;
-  const rgbRegex = /rgb\((\d+),\s(\d+),\s(\d+)\)$/;
+  const rgbaRegex =
+    /rgba\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\)$/;
+  const rgbRegex =
+    /rgb\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\)$/;
   let result: string[] | undefined;
 
   if (rgbaRegex.test(color)) {
@@ -12,8 +32,6 @@ function getColorArray(color: string) {
   } else if (rgbRegex.test(color)) {
     result = color.match(rgbRegex)?.slice(1);
   }
-
-  console.log("Color result", result);
 
   return result;
 }
@@ -35,22 +53,6 @@ function invertColor(colorArray: string[] | undefined) {
 function getShadowColor(shadow: string) {
   const getRgba = /rgba\(.*\)/;
   const newShadow = shadow.replace(getRgba, (match) => {
-    console.log(match);
-    console.log("parse", culori.parse(match));
-    console.log("format", culori.formatRgb(culori.parse(match)));
-    const parseColor = culori.formatRgb(culori.parse(match));
-
-    console.log("parseColor", parseColor);
-
-    console.log(
-      "getColorArray",
-      getColorArray(parseColor.slice(1, parseColor.length - 1))
-    );
-    console.log(
-      "Inverted Color",
-      getColorArray(culori.formatRgb(culori.parse(match) || ""))
-    );
-
     return (
       invertColor(getColorArray(culori.formatRgb(culori.parse(match) || ""))) ||
       ""
@@ -80,7 +82,9 @@ function changeColor(isDark: boolean) {
     if (node instanceof HTMLElement) {
       if (isDark) {
         const computedStyle = getComputedStyle(node);
-        console.log(node.tagName, computedStyle.boxShadow);
+        if (node.tagName === "PRE") {
+          return;
+        }
 
         node.style.boxShadow = getShadowColor(computedStyle.boxShadow);
 
@@ -107,21 +111,48 @@ function changeColor(isDark: boolean) {
           currentNode = currentNode.parentElement;
         }
 
-        let newBgColor = invertColor(
-          getColorArray(
-            culori.formatRgb(culori.parse(computedStyle.backgroundColor)) || ""
-          )
-        );
-        let newColor = invertColor(
-          getColorArray(
-            culori.formatRgb(culori.parse(computedStyle.color)) || ""
-          )
-        );
-        let newBorderColor = invertColor(
-          getColorArray(
-            culori.formatRgb(culori.parse(computedStyle.borderColor)) || ""
-          )
-        );
+        let newBgColor = computedStyle.backgroundColor;
+        let newColor = computedStyle.color;
+        let newBorderColor = computedStyle.borderColor;
+
+        console.log(node.tagName, {
+          OrginalbgColor: newBgColor,
+          bgColor: getColorArray(culori.formatRgb(culori.parse(newBgColor))),
+          OriginalColor: newColor,
+          Color: getColorArray(culori.formatRgb(culori.parse(newColor))),
+          OriginalborderColor: newBorderColor,
+          borderColor: getColorArray(
+            culori.formatRgb(culori.parse(newBorderColor))
+          ),
+        });
+
+        if (!checkIsDark(getColorArray(newBgColor))) {
+          newBgColor =
+            invertColor(
+              getColorArray(
+                culori.formatRgb(culori.parse(computedStyle.backgroundColor)) ||
+                  "rgba(0, 0, 0, 0)"
+              )
+            ) || "rgba(0, 0, 0, 0)";
+        }
+        if (checkIsDark(getColorArray(newColor))) {
+          newColor =
+            invertColor(
+              getColorArray(
+                culori.formatRgb(culori.parse(computedStyle.color)) ||
+                  "rgba(0, 0, 0, 0)"
+              )
+            ) || "rgba(0, 0, 0, 0)";
+        }
+        if (checkIsDark(getColorArray(newBorderColor))) {
+          newBorderColor =
+            invertColor(
+              getColorArray(
+                culori.formatRgb(culori.parse(computedStyle.borderColor)) ||
+                  "rgba(0, 0, 0, 0)"
+              )
+            ) || "rgba(0, 0, 0, 0)";
+        }
 
         if (
           computedStyle.backgroundColor === "rgba(0, 0, 0, 0)" &&
@@ -141,7 +172,9 @@ function changeColor(isDark: boolean) {
           getComputedStyle(currentNode).backgroundColor ===
             "rgba(255, 255, 255, 0)"
         ) {
-          newColor = "rgba(255, 255, 255, 1)";
+          if (!checkIsDark(getColorArray(computedStyle.borderBottomColor))) {
+            newColor = computedStyle.color;
+          }
         }
 
         if (newColor) {
